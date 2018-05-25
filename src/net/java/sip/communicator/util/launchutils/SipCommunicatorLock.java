@@ -217,7 +217,7 @@ public class SipCommunicatorLock extends Thread
         }
         catch (IOException e)
         {
-            logger.error("Failed to create lock file" + lockFile, e);
+            logger.error("Failed to create lock file " + lockFile + ", msg:" + e.getMessage() + " estr:" + e.toString(), e);
         }
 
         lockFile.deleteOnExit();
@@ -484,13 +484,23 @@ public class SipCommunicatorLock extends Thread
      */
     private File getLockFile()
     {
-        String homeDirLocation =
+        String homeDirLocation = 
             System
                 .getProperty(SIPCommunicator.PNAME_SC_CACHE_DIR_LOCATION);
         String homeDirName = System
-                        .getProperty(SIPCommunicator.PNAME_SC_HOME_DIR_NAME);
-
-        return new File(new File(homeDirLocation, homeDirName), LOCK_FILE_NAME);
+            .getProperty(SIPCommunicator.PNAME_SC_HOME_DIR_NAME);
+        String homeDirUri = "";
+        String homeDirNameUri = "";
+        try
+        {
+            homeDirUri = new URI(null, null, homeDirLocation, null).getPath();
+            homeDirNameUri = new URI(null, null, homeDirName, null).getPath();            
+        }
+        catch (URISyntaxException e)
+        {
+            logger.error("Can not get URI for homeDirLocation or homeDirNameUri");
+        }   
+        return new File(new File(homeDirUri, homeDirNameUri), LOCK_FILE_NAME);
     }
 
     /**

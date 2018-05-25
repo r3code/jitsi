@@ -21,11 +21,14 @@ import java.beans.*;
 import java.util.*;
 import java.util.regex.*;
 
+import net.java.sip.communicator.impl.globaldisplaydetails.GlobalDisplayDetailsActivator;
+import net.java.sip.communicator.impl.gui.main.call.*;
 import net.java.sip.communicator.service.argdelegation.*;
 import net.java.sip.communicator.service.gui.*;
 import net.java.sip.communicator.service.protocol.*;
 import net.java.sip.communicator.service.protocol.event.*;
 import net.java.sip.communicator.util.*;
+import net.java.sip.communicator.util.account.LoginManager;
 
 import org.osgi.framework.*;
 
@@ -319,13 +322,19 @@ public class UriHandlerJabberImpl
             return;
         }
 
-        if(!uri.contains("?"))
+        if(/* DEBUG: true*/true/*!uri.contains("?")*/)
         {
             OperationSetPersistentPresence presenceOpSet
                 = provider
                     .getOperationSet(OperationSetPersistentPresence.class);
-
+            if(uri != null)
+                uri = uri.replace("xmpp://", "xmpp:");
+                
             String contactId = uri.substring(uri.indexOf(':') + 1);
+            contactId = contactId.replace("xmpp:", "");
+            if (uri.contains("?")) {
+                contactId = contactId.substring(0, contactId.indexOf('?'));
+            }
 
             //todo check url!!
             //Set the email pattern string
@@ -358,9 +367,91 @@ public class UriHandlerJabberImpl
 
                 return;
             }
+            //
+            // see pull 270
+            OperationSetBasicTelephony<?> telephonyOpSet
+            = provider.getOperationSet(OperationSetBasicTelephony.class);
+            
+            OperationSetVideoTelephony videoTelephonyOpSet
+            = provider.getOperationSet(OperationSetVideoTelephony.class);
+            
+            boolean videoCall = false;
+            if(videoTelephonyOpSet != null
+                && uri.contains("?"))
+            {
+                String params = uri.substring(uri.indexOf('?') + 1);
 
-            JabberActivator.getUIService().
-                    getChat(contact).setChatVisible(true);
+                StringTokenizer paramTokens = new StringTokenizer(params, "&");
+                while(paramTokens.hasMoreTokens())
+                {
+                    String tok = paramTokens.nextToken();
+                    String[] keyValue = tok.split("\\=");
+                    if (keyValue.length == 2
+                        && keyValue[0].equalsIgnoreCase("video")
+                        && keyValue[1].equalsIgnoreCase("true"))
+                        videoCall = true;
+                }
+            }
+            
+            try
+            {
+                UIService uiService = JabberActivator.getUIService();
+                if(uiService != null)
+                {
+//                    LoginManager loginManager = uiService.getLoginManager();
+                    if (!provider.isRegistered()) {
+                        provider.register(uiService.getDefaultSecurityAuthority(provider));
+                    }
+                   
+                   // loginManager.login(provider);
+                    if(videoCall)
+                        videoTelephonyOpSet.createVideoCall(contact);
+                    else
+                        telephonyOpSet.createCall(contact);
+                }
+                
+            }
+            catch (OperationFailedException exc)
+            {
+                // make sure that we prompt for registration only if it is really
+                // required by the provider.
+                boolean handled = false;
+//                if (exc.getErrorCode() == OperationFailedException.PROVIDER_NOT_REGISTERED)
+//                {
+//                    handled = promptForRegistration(uri, provider);
+//                }
+                if(!handled)
+                {
+                    showErrorMessage("Failed to create a call to " + uri, exc);
+                }
+            }
+//            catch (ParseException exc)
+//            {
+//                showErrorMessage(
+//                    uri + " does not appear to be a valid XMPP address", exc);
+//            }
+            
+// ================            
+// MY
+//            OperationSetVideoTelephony telephony
+//            = provider.getOperationSet(
+//                    OperationSetVideoTelephony.class);
+//            Call createdCall = null;
+//            if (telephony != null)
+//            {
+//                try {
+//                 createdCall = telephony.createVideoCall(contact);
+////                 Не хватает чего то, пишет can not setup Jingle call, we dont have valid XMPP connection
+//                } 
+//                catch (OperationFailedException exc)
+//                {
+//                        showErrorMessage("Video call failed:  " + exc.getMessage(), exc);
+//                }    
+//            }
+//            CallManager.createVideoCall(provider, contact.getAddress());
+
+// OROGIGNAL           JabberActivator.getUIService().
+//                    getChat(contact).setChatVisible(true);
         }
         else
         {
